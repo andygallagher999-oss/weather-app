@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>🌦️ Real Weather Radar App</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body,html{height:100%;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;}
+body,html{height:100%;font-family:'Segoe UI',Tahoma,sans-serif;}
 body{background:#e0eafc;display:flex;flex-direction:column;}
 #appContainer{display:flex;flex:1;overflow:hidden;}
-#sidebar{width:320px;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);display:flex;flex-direction:column;transition:transform 0.3s ease;overflow:hidden;}
+#sidebar{width:320px;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);display:flex;flex-direction:column;transition:transform .3s ease;overflow:hidden;}
 #sidebar.collapsed{transform:translateX(-100%);}
 #sidebarHeader{padding:20px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;text-align:center;}
 #sidebarHeader h1{font-size:20px;margin-bottom:5px;}
@@ -38,182 +38,186 @@ body{background:#e0eafc;display:flex;flex-direction:column;}
 #radarLegend{position:absolute;bottom:10px;left:10px;background:rgba(255,255,255,0.9);padding:10px;border-radius:6px;z-index:1000;font-size:12px;}
 #toggleSidebar{display:none;}
 @media(max-width:768px){
-    #sidebar{position:absolute;z-index:1001;height:100vh;left:0;top:0;}
-    #toggleSidebar{display:block;position:absolute;top:10px;left:10px;z-index:1100;background:#fff;border-radius:50%;padding:8px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);}
-    #map{height:100vh;}
+  #sidebar{position:absolute;z-index:1001;height:100vh;left:0;top:0;}
+  #toggleSidebar{display:block;position:absolute;top:10px;left:10px;z-index:1100;background:#fff;border-radius:50%;padding:8px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);}
+  #map{height:100vh;}
 }
 </style>
 </head>
 <body>
 <div id="toggleSidebar">☰</div>
 <div id="appContainer">
-    <div id="sidebar">
-        <div id="sidebarHeader">
-            <h1>🌦️ Real Weather Radar</h1>
-            <p>Live Weather & Radar</p>
-        </div>
-        <div id="controls">
-            <div class="control-group">
-                <label>Add Location</label>
-                <input type="text" id="locationInput" class="location-input" placeholder="Enter city name...">
-                <div id="locationSuggestions"></div>
-                <button class="btn btn-primary" id="addLocationBtn">Add Location</button>
-            </div>
-            <div class="control-group">
-                <label>Your Locations</label>
-                <div class="locations-list" id="locationsList">
-                    <div class="loading">Loading locations...</div>
-                </div>
-            </div>
-            <div class="control-group">
-                <label>Weather Info</label>
-                <div id="weatherInfo">
-                    <h3>Select a location</h3>
-                    <p>Click on a location to see weather details</p>
-                </div>
-            </div>
-        </div>
+  <div id="sidebar">
+    <div id="sidebarHeader">
+      <h1>🌦️ Real Weather Radar</h1>
+      <p>Live Weather & Radar</p>
     </div>
-    <div id="map"></div>
+    <div id="controls">
+      <div class="control-group">
+        <label>Add Location</label>
+        <input type="text" id="locationInput" class="location-input" placeholder="Enter city name..." />
+        <div id="locationSuggestions"></div>
+        <button class="btn btn-primary" id="addLocationBtn">Add Location</button>
+      </div>
+      <div class="control-group">
+        <label>Your Locations</label>
+        <div class="locations-list" id="locationsList">
+          <div class="loading">Loading locations...</div>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Weather Info</label>
+        <div id="weatherInfo">
+          <h3>Select a location</h3>
+          <p>Click a location to see weather details</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="map"></div>
 </div>
 <div class="radar-controls">
-    <button class="radar-btn radar-precipitation" onclick="toggleRadarLayer('precipitation')">🌧️ Precipitation</button>
-    <button class="radar-btn radar-temperature" onclick="toggleRadarLayer('temperature')">🌡️ Temperature</button>
-    <button class="radar-btn radar-clouds" onclick="toggleRadarLayer('clouds')">☁️ Clouds</button>
+  <button class="radar-btn radar-precipitation" onclick="toggleRadarLayer('precipitation')">🌧️ Precipitation</button>
+  <button class="radar-btn radar-temperature" onclick="toggleRadarLayer('temperature')">🌡️ Temperature</button>
+  <button class="radar-btn radar-clouds" onclick="toggleRadarLayer('clouds')">☁️ Clouds</button>
 </div>
 <div id="radarLegend">
-    <strong>Radar Legend:</strong><br>
-    🌧️ Precipitation: Light → Green → Yellow → Red<br>
-    🌡️ Temperature: Cold Blue → Orange → Hot Red<br>
-    ☁️ Clouds: Light Purple → Dark Purple
+  <strong>Radar Legend:</strong><br />
+  🌧️ Precipitation: Light → Green → Yellow → Red<br />
+  🌡️ Temperature: Cold Blue → Orange → Hot Red<br />
+  ☁️ Clouds: Light Purple → Dark Purple
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-const API_KEY='e1b3a19a50cf215e856e091a6073636f';
-const API_BASE='https://api.openweathermap.org/data/2.5';
-const TILE_URL='https://tile.openweathermap.org/map';
-let map,locations={},markers={},currentRadarLayer=null,searchTimeout=null;
+const API_KEY = '54e9fa50b7c99e471e715c740dc958af';
+const API_BASE = 'https://api.openweathermap.org/data/2.5';
+const TILE_URL = 'https://tile.openweathermap.org/map';
 
+let map, locations = {}, markers = {}, currentRadarLayer = null;
+
+// ---------- App Init ----------
 function initializeApp(){
-    map=L.map('map').setView([43.6532,-79.3832],5);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-        attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19
-    }).addTo(map);
-    loadDefaultLocations();
+  map = L.map('map').setView([43.6532,-79.3832], 6);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19
+  }).addTo(map);
+  loadDefaultLocations();
 }
 
+// ---------- API helpers ----------
 async function geocodeLocation(name){
-    try{
-        const resp=await fetch(`${API_BASE}/geo/1.0/direct?q=${encodeURIComponent(name)}&limit=5&appid=${API_KEY}`);
-        if(!resp.ok)throw new Error('Geo API error');
-        return await resp.json();
-    }catch(e){console.error(e);return[];}
+  try {
+    const r = await fetch(`${API_BASE}/geo/1.0/direct?q=${encodeURIComponent(name)}&limit=5&appid=${API_KEY}`);
+    if(!r.ok) throw new Error('Geo API error');
+    return await r.json();
+  } catch(e){ console.error(e); return []; }
 }
-
 async function getWeatherData(lat,lon){
-    try{
-        const resp=await fetch(`${API_BASE}/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`);
-        if(!resp.ok)throw new Error('Weather API error');
-        return await resp.json();
-    }catch(e){console.error(e);return null;}
+  try {
+    const r = await fetch(`${API_BASE}/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`);
+    if(!r.ok) throw new Error('Weather API error');
+    return await r.json();
+  } catch(e){ console.error(e); return null; }
 }
 
-async function addLocation(selectedName){
-    const input=document.getElementById('locationInput');
-    const name=selectedName||input.value.trim();
-    if(!name)return;
-    const results=await geocodeLocation(name);
-    if(!results||results.length===0)return alert('Location not found');
-    const loc=results[0];
-    const fullName=`${loc.name},${loc.state?loc.state+',':''}${loc.country||''}`;
-    if(locations[fullName])return;
-    const weather=await getWeatherData(loc.lat,loc.lon);
-    if(!weather)return;
-    locations[fullName]={coords:[loc.lat,loc.lon],weather};
-    localStorage.setItem('savedLocations',JSON.stringify(Object.keys(locations)));
-    addMarkerToMap(fullName,[loc.lat,loc.lon],weather);
-    addLocationToSidebar(fullName,weather);
-    input.value='';
+// ---------- Locations ----------
+async function addLocation(selected){
+  const input = document.getElementById('locationInput');
+  const name = selected || input.value.trim();
+  if(!name) return;
+  const results = await geocodeLocation(name);
+  if(!results.length) return alert('Location not found');
+  const loc = results[0];
+  const fullName = `${loc.name},${loc.state?loc.state+',':''}${loc.country}`;
+  if(locations[fullName]) return;
+  const weather = await getWeatherData(loc.lat, loc.lon);
+  if(!weather) return;
+  locations[fullName] = {coords:[loc.lat,loc.lon], weather};
+  localStorage.setItem('savedLocations', JSON.stringify(Object.keys(locations)));
+  addMarker(fullName, [loc.lat,loc.lon], weather);
+  addSidebarItem(fullName, weather);
+  input.value='';
 }
 
-function addMarkerToMap(name,coords,weather){
-    const marker=L.marker(coords).addTo(map);
-    marker.bindPopup(`<h3>${name}</h3><p>${weather.weather[0].description}, ${Math.round(weather.main.temp)}°C</p>`);
-    markers[name]=marker;
-    marker.on('click',()=>focusLocation(name));
+function addMarker(name, coords, weather){
+  const m = L.marker(coords).addTo(map);
+  m.bindPopup(`<h3>${name}</h3><p>${weather.weather[0].description}, ${Math.round(weather.main.temp)}°C</p>`);
+  m.on('click', ()=>focusLocation(name));
+  markers[name] = m;
 }
 
-function addLocationToSidebar(name,weather){
-    const container=document.getElementById('locationsList');
-    const div=document.createElement('div');
-    div.className='location-item';
-    div.innerHTML=`<div>${name}</div><span class="remove-btn">&times;</span>`;
-    div.querySelector('.remove-btn').onclick=e=>{e.stopPropagation();removeLocation(name,div);};
-    div.onclick=()=>focusLocation(name);
-    container.appendChild(div);
+function addSidebarItem(name, weather){
+  const container = document.getElementById('locationsList');
+  const div = document.createElement('div');
+  div.className='location-item';
+  div.innerHTML=`<div>${name}</div><span class="remove-btn">&times;</span>`;
+  div.querySelector('.remove-btn').onclick = e => { e.stopPropagation(); removeLocation(name, div); };
+  div.onclick = ()=>focusLocation(name);
+  container.appendChild(div);
 }
 
-function removeLocation(name,el){
-    if(markers[name])map.removeLayer(markers[name]);
-    delete markers[name]; delete locations[name];
-    el.remove();
-    localStorage.setItem('savedLocations',JSON.stringify(Object.keys(locations)));
+function removeLocation(name, el){
+  if(markers[name]) map.removeLayer(markers[name]);
+  delete markers[name]; delete locations[name];
+  el.remove();
+  localStorage.setItem('savedLocations', JSON.stringify(Object.keys(locations)));
 }
 
 function focusLocation(name){
-    if(!locations[name])return;
-    map.setView(locations[name].coords,10);
-    markers[name].openPopup();
-    updateWeatherInfo(name,locations[name].weather);
+  if(!locations[name]) return;
+  map.setView(locations[name].coords, 10);
+  markers[name].openPopup();
+  updateWeatherInfo(name, locations[name].weather);
 }
 
-function updateWeatherInfo(name,weather){
-    const info=document.getElementById('weatherInfo');
-    info.innerHTML=`<h3>${name}</h3>
-    <p>Temp: ${Math.round(weather.main.temp)}°C (Feels like ${Math.round(weather.main.feels_like)}°C)</p>
-    <p>Conditions: ${weather.weather[0].description}</p>
-    <p>Wind: ${weather.wind.speed} m/s</p>
-    <p>Humidity: ${weather.main.humidity}%</p>
-    <p>Pressure: ${weather.main.pressure} hPa</p>`;
+function updateWeatherInfo(name, w){
+  document.getElementById('weatherInfo').innerHTML =
+    `<h3>${name}</h3>
+     <p>Temp: ${Math.round(w.main.temp)}°C (Feels like ${Math.round(w.main.feels_like)}°C)</p>
+     <p>Conditions: ${w.weather[0].description}</p>
+     <p>Wind: ${w.wind.speed} m/s</p>
+     <p>Humidity: ${w.main.humidity}%</p>
+     <p>Pressure: ${w.main.pressure} hPa</p>`;
 }
 
 async function loadDefaultLocations(){
-    const saved=JSON.parse(localStorage.getItem('savedLocations')||'[]');
-    const defaultCities=['Toronto,ON,CA'];
-    const cities=[...new Set([...defaultCities,...saved])];
-    document.getElementById('locationsList').innerHTML='';
-    for(const city of cities){ await addLocation(city); }
+  const saved = JSON.parse(localStorage.getItem('savedLocations') || '[]');
+  const defaultCities = ['Toronto,CA']; // reliable default
+  const cities = [...new Set([...defaultCities, ...saved])];
+  document.getElementById('locationsList').innerHTML = '';
+  for(const c of cities) await addLocation(c);
 }
 
+// ---------- Radar ----------
 function toggleRadarLayer(type){
-    if(currentRadarLayer)map.removeLayer(currentRadarLayer);
-    const codes={precipitation:'precipitation_new',temperature:'temp_new',clouds:'clouds_new'};
-    const op={precipitation:0.6,temperature:0.5,clouds:0.5};
-    const url=`${TILE_URL}/${codes[type]}/{z}/{x}/{y}.png?appid=${API_KEY}`;
-    currentRadarLayer=L.tileLayer(url,{opacity:op[type],attribution:'Weather © OpenWeatherMap'}).addTo(map);
+  if(currentRadarLayer) map.removeLayer(currentRadarLayer);
+  const codes = {precipitation:'precipitation_new', temperature:'temp_new', clouds:'clouds_new'};
+  const op = {precipitation:0.6, temperature:0.5, clouds:0.5};
+  const url = `${TILE_URL}/${codes[type]}/{z}/{x}/{y}.png?appid=${API_KEY}`;
+  currentRadarLayer = L.tileLayer(url, {opacity: op[type], attribution:'Weather © OpenWeatherMap'}).addTo(map);
 }
 
-// Autocomplete
-const sugg=document.getElementById('locationSuggestions');
-document.getElementById('locationInput').addEventListener('input',async e=>{
-    const q=e.target.value.trim();
-    sugg.innerHTML='';
-    if(!q)return;
-    const results=await geocodeLocation(q);
-    results.forEach(r=>{
-        const div=document.createElement('div');
-        div.textContent=`${r.name},${r.state?r.state+',':''}${r.country}`;
-        div.onclick=()=>{addLocation(div.textContent); sugg.innerHTML='';};
-        sugg.appendChild(div);
-    });
+// ---------- Autocomplete ----------
+const sugg = document.getElementById('locationSuggestions');
+document.getElementById('locationInput').addEventListener('input', async e=>{
+  const q = e.target.value.trim();
+  sugg.innerHTML='';
+  if(!q) return;
+  const res = await geocodeLocation(q);
+  res.forEach(r=>{
+    const d = document.createElement('div');
+    d.textContent = `${r.name},${r.state?r.state+',':''}${r.country}`;
+    d.onclick = ()=>{ addLocation(d.textContent); sugg.innerHTML=''; };
+    sugg.appendChild(d);
+  });
 });
-document.addEventListener('click',e=>{if(!e.target.closest('.control-group'))sugg.innerHTML='';});
+document.addEventListener('click', e=>{ if(!e.target.closest('.control-group')) sugg.innerHTML=''; });
 
-document.getElementById('addLocationBtn').onclick=()=>addLocation();
-document.getElementById('toggleSidebar').onclick=()=>document.getElementById('sidebar').classList.toggle('collapsed');
+document.getElementById('addLocationBtn').onclick = ()=>addLocation();
+document.getElementById('toggleSidebar').onclick = ()=>document.getElementById('sidebar').classList.toggle('collapsed');
 
-document.addEventListener('DOMContentLoaded',initializeApp);
+document.addEventListener('DOMContentLoaded', initializeApp);
 </script>
 </body>
 </html>
