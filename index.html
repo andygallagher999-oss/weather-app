@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Radar App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            text-align: center;
+        }
+
+        .sidebar-header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .sidebar-header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 20px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .location-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .location-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #495057;
+            border: 2px solid #e9ecef;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .time-controls {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .time-slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            margin: 15px 0;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .time-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .time-display {
+            text-align: center;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+
+        .play-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .play-btn {
+            flex: 1;
+            padding: 8px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .play-btn:hover {
+            background: #218838;
+        }
+
+        .play-btn.pause {
+            background: #dc3545;
+        }
+
+        .play-btn.pause:hover {
+            background: #c82333;
+        }
+
+        .locations-list {
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .location-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .location-item:hover {
+            background: #e9ecef;
+        }
+
+        .location-item:last-child {
+            border-bottom: none;
+        }
+
+        .location-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .location-weather {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .remove-btn {
+            color: #dc3545;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .remove-btn:hover {
+            background: rgba(220, 53, 69, 0.1);
+            border-radius: 50%;
+        }
+
+        .map-container {
+            flex-grow: 1;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        .legend h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 15px;
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+
+        .status-bar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .weather-info {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            border: 1px solid #e9ecef;
+        }
+
+        .weather-info h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .weather-detail {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .weather-detail strong {
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>⛈️ Weather Radar</h1>
+                <p>Past & Future Weather Tracking</p>
+            </div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <label>Add Location</label>
+                    <input type="text" class="location-input" id="locationInput" placeholder="Enter city name...">
+                    <button class="btn btn-primary" onclick="addLocation()">Add Location</button>
+                </div>
+
+                <div class="control-group">
+                    <label>Your Locations</label>
+                    <div class="locations-list" id="locationsList">
+                        <div class="location-item" onclick="focusLocation('Toronto')">
+                            <div>
+                                <div class="location-name">Toronto, ON</div>
+                                <div class="location-weather">Partly Cloudy • 22°C</div>
+                            </div>
+                            <span class="remove-btn" onclick="event.stopPropagation(); removeLocation(this)">&times;</span>
+                        </div>
+                        <div class="location-item" onclick="focusLocation('New York')">
+                            <div>
+                                <div class="location-name">New York, NY</div>
+                                <div class="location-weather">Thunderstorms • 25°C</div>
+                            </div>
+                            <span class="remove-btn" onclick="event.stopPropagation(); removeLocation(this)">&times;</span>
+                        </div>
+                        <div class="location-item" onclick="focusLocation('London')">
+                            <div>
+                                <div class="location-name">London, UK</div>
+                                <div class="location-weather">Light Rain • 18°C</div>
+                            </div>
+                            <span class="remove-btn" onclick="event.stopPropagation(); removeLocation(this)">&times;</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Time Controls</label>
+                    <div class="time-controls">
+                        <div class="time-display" id="timeDisplay">Current Time: 3:30 PM</div>
+                        <input type="range" class="time-slider" id="timeSlider" min="-12" max="6" value="0" step="0.5">
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #666;">
+                            <span>12hrs ago</span>
+                            <span>Now</span>
+                            <span>+6hrs</span>
+                        </div>
+                        <div class="play-controls">
+                            <button class="play-btn" id="playBtn" onclick="toggleAnimation()">▶ Play</button>
+                            <button class="btn-secondary" style="flex: 1;" onclick="resetTime()">Reset</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <button class="btn btn-secondary" onclick="toggleRadarLayer()">Toggle Radar Layer</button>
+                </div>
+
+                <div class="weather-info" id="weatherInfo">
+                    <h3>Current Conditions</h3>
+                    <div class="weather-detail">
+                        <span>Temperature:</span>
+                        <strong>22°C</strong>
+                    </div>
+                    <div class="weather-detail">
+                        <span>Precipitation:</span>
+                        <strong>Light Rain</strong>
+                    </div>
+                    <div class="weather-detail">
+                        <span>Wind:</span>
+                        <strong>15 km/h SW</strong>
+                    </div>
+                    <div class="weather-detail">
+                        <span>Humidity:</span>
+                        <strong>78%</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <div class="legend">
+                <h4>Precipitation Intensity</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #00ff00;"></div>
+                    Light Rain
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffff00;"></div>
+                    Moderate Rain
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff8800;"></div>
+                    Heavy Rain
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff0000;"></div>
+                    Very Heavy Rain
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff00ff;"></div>
+                    Extreme
+                </div>
+            </div>
+
+            <div class="status-bar" id="statusBar">
+                Last Updated: 3:25 PM • Data: Live Radar
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        // Initialize the map
+        let map = L.map('map').setView([43.6532, -79.3832], 6); // Toronto center
+        
+        // Add base tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Weather radar simulation data
+        let locations = {
+            'Toronto': [43.6532, -79.3832],
+            'New York': [40.7128, -74.0060],
+            'London': [51.5074, -0.1278],
+            'Chicago': [41.8781, -87.6298],
+            'Vancouver': [49.2827, -123.1207]
+        };
+
+        let markers = {};
+        let radarLayer = null;
+        let isPlaying = false;
+        let currentTime = 0;
+        let animationInterval = null;
+
+        // Add default markers
+        Object.entries(locations).forEach(([name, coords]) => {
+            addMarkerToMap(name, coords);
+        });
+
+        // Simulate radar data with animated overlays
+        function createSimulatedRadar() {
+            // Clear existing radar
+            if (radarLayer) {
+                map.removeLayer(radarLayer);
+            }
+
+            // Create animated weather patterns
+            let radarData = [];
+            let time = parseFloat(document.getElementById('timeSlider').value);
+            
+            // Simulate weather patterns moving across the map
+            for (let i = 0; i < 20; i++) {
+                let lat = 35 + Math.random() * 20;
+                let lng = -100 + Math.random() * 40 + (time * 2); // Move patterns over time
+                let intensity = Math.random();
+                
+                let color;
+                if (intensity < 0.2) color = '#00ff0040';
+                else if (intensity < 0.4) color = '#ffff0060';
+                else if (intensity < 0.6) color = '#ff880080';
+                else if (intensity < 0.8) color = '#ff0000a0';
+                else color = '#ff00ffc0';
+
+                let circle = L.circle([lat, lng], {
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.6,
+                    radius: 50000 + Math.random() * 100000
+                });
+                
+                radarData.push(circle);
+            }
+
+            // Create layer group
+            radarLayer = L.layerGroup(radarData);
+            map.addLayer(radarLayer);
+        }
+
+        function addMarkerToMap(name, coords) {
+            let marker = L.marker(coords).addTo(map);
+            marker.bindPopup(`
+                <div style="text-align: center;">
+                    <h3>${name}</h3>
+                    <p><strong>Current:</strong> ${getCurrentWeather(name)}</p>
+                    <p><strong>Forecast:</strong> ${getForecast(name)}</p>
+                </div>
+            `);
+            markers[name] = marker;
+        }
+
+        function getCurrentWeather(location) {
+            const weather = ['Sunny', 'Partly Cloudy', 'Cloudy', 'Light Rain', 'Heavy Rain', 'Thunderstorms'];
+            return weather[Math.floor(Math.random() * weather.length)] + ` • ${15 + Math.floor(Math.random() * 20)}°C`;
+        }
+
+        function getForecast(location) {
+            const forecasts = ['Clearing up', 'Rain expected', 'Storm approaching', 'Sunny skies ahead'];
+            return forecasts[Math.floor(Math.random() * forecasts.length)];
+        }
+
+        function addLocation() {
+            let input = document.getElementById('locationInput');
+            let locationName = input.value.trim();
+            
+            if (locationName) {
+                // Simulate adding new location (in real app, would geocode)
+                let lat = 40 + Math.random() * 20;
+                let lng = -120 + Math.random() * 40;
+                
+                locations[locationName] = [lat, lng];
+                addMarkerToMap(locationName, [lat, lng]);
+                
+                // Add to sidebar list
+                let listContainer = document.getElementById('locationsList');
+                let locationDiv = document.createElement('div');
+                locationDiv.className = 'location-item';
+                locationDiv.onclick = () => focusLocation(locationName);
+                locationDiv.innerHTML = `
+                    <div>
+                        <div class="location-name">${locationName}</div>
+                        <div class="location-weather">${getCurrentWeather(locationName)}</div>
+                    </div>
+                    <span class="remove-btn" onclick="event.stopPropagation(); removeLocation(this)">&times;</span>
+                `;
+                listContainer.appendChild(locationDiv);
+                
+                input.value = '';
+                updateStatusBar(`Added ${locationName} to your locations`);
+            }
+        }
+
+        function removeLocation(element) {
+            let locationItem = element.parentElement;
+            let locationName = locationItem.querySelector('.location-name').textContent.split(',')[0];
+            
+            // Remove marker from map
+            if (markers[locationName]) {
+                map.removeLayer(markers[locationName]);
+                delete markers[locationName];
+            }
+            
+            // Remove from locations
+            delete locations[locationName];
+            
+            // Remove from DOM
+            locationItem.remove();
+            
+            updateStatusBar(`Removed ${locationName} from your locations`);
+        }
+
+        function focusLocation(locationName) {
+            if (locations[locationName]) {
+                map.setView(locations[locationName], 8);
+                if (markers[locationName]) {
+                    markers[locationName].openPopup();
+                }
+                updateStatusBar(`Focused on ${locationName}`);
+            }
+        }
+
+        function toggleAnimation() {
+            let playBtn = document.getElementById('playBtn');
+            
+            if (isPlaying) {
+                clearInterval(animationInterval);
+                playBtn.textContent = '▶ Play';
+                playBtn.classList.remove('pause');
+                isPlaying = false;
+                updateStatusBar('Animation paused');
+            } else {
+                animationInterval = setInterval(() => {
+                    let slider = document.getElementById('timeSlider');
+                    let currentVal = parseFloat(slider.value);
+                    
+                    if (currentVal >= 6) {
+                        currentVal = -12;
+                    } else {
+                        currentVal += 0.5;
+                    }
+                    
+                    slider.value = currentVal;
+                    updateTimeDisplay();
+                    createSimulatedRadar();
+                }, 1000);
+                
+                playBtn.textContent = '⏸ Pause';
+                playBtn.classList.add('pause');
+                isPlaying = true;
+                updateStatusBar('Animation playing');
+            }
+        }
+
+        function resetTime() {
+            document.getElementById('timeSlider').value = 0;
+            updateTimeDisplay();
+            createSimulatedRadar();
+            updateStatusBar('Time reset to current');
+        }
+
+        function updateTimeDisplay() {
+            let slider = document.getElementById('timeSlider');
+            let timeValue = parseFloat(slider.value);
+            let display = document.getElementById('timeDisplay');
+            
+            let currentHour = new Date().getHours();
+            let targetHour = currentHour + timeValue;
+            
+            if (targetHour < 0) targetHour += 24;
+            if (targetHour >= 24) targetHour -= 24;
+            
+            let timeString = `${targetHour}:30`;
+            let label = timeValue === 0 ? 'Current Time' : 
+                       timeValue < 0 ? `${Math.abs(timeValue)} hrs ago` : 
+                       `+${timeValue} hrs`;
+            
+            display.textContent = `${label}: ${timeString}`;
+        }
+
+        function toggleRadarLayer() {
+            if (radarLayer && map.hasLayer(radarLayer)) {
+                map.removeLayer(radarLayer);
+                updateStatusBar('Radar layer hidden');
+            } else {
+                createSimulatedRadar();
+                updateStatusBar('Radar layer shown');
+            }
+        }
+
+        function updateStatusBar(message) {
+            let statusBar = document.getElementById('statusBar');
+            let now = new Date();
+            statusBar.innerHTML = `Last Updated: ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')} • ${message}`;
+        }
+
+        // Event listeners
+        document.getElementById('timeSlider').addEventListener('input', function() {
+            updateTimeDisplay();
+            createSimulatedRadar();
+        });
+
+        document.getElementById('locationInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addLocation();
+            }
+        });
+
+        // Initialize the app
+        updateTimeDisplay();
+        createSimulatedRadar();
+        updateStatusBar('Weather radar app loaded');
+
+        // Auto-refresh radar every 5 minutes (simulated)
+        setInterval(() => {
+            if (!isPlaying) {
+                createSimulatedRadar();
+                updateStatusBar('Radar data refreshed');
+            }
+        }, 300000);
+    </script>
+</body>
+</html>
