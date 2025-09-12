@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather Radar App</title>
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+  header { background: #1976d2; color: #fff; padding: 0.8rem 1rem; text-align: center; font-size: 1.2rem; }
+  #map { flex: 1; }
+  #controls {
+    background: #f7f7f7;
+    padding: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+  #locationInput { padding: 0.4rem; width: 200px; }
+  #locationSuggestions {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ccc;
+    max-height: 150px;
+    overflow-y: auto;
+    width: 200px;
+    z-index: 1000;
+  }
+  #locationSuggestions div {
+    padding: 0.3rem 0.5rem;
+    cursor: pointer;
+  }
+  #locationSuggestions div:hover { background: #eee; }
+  #locationsList { padding: 0.5rem; text-align: center; }
+  #locationsList div {
+    display: inline-block;
+    background: #e3f2fd;
+    margin: 0.2rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+  }
+  #locationsList div span {
+    margin-left: 0.4rem;
+    cursor: pointer;
+    color: red;
+  }
+  button { padding: 0.4rem 0.8rem; border: none; border-radius: 6px; background: #1976d2; color: #fff; cursor: pointer; }
+  button:hover { background: #125a9c; }
+  @media (max-width: 600px) {
+    #locationInput { width: 100%; }
+    #locationSuggestions { width: 90%; }
+  }
+</style>
+</head>
+<body>
+  <header>Weather Radar App</header>
+  <div id="controls">
+    <input id="locationInput" type="text" placeholder="Add location…" autocomplete="off">
+    <button id="addLocationBtn">Add Location</button>
+    <button data-layer="precipitation">Precipitation</button>
+    <button data-layer="temperature">Temperature</button>
+    <button data-layer="clouds">Clouds</button>
+    <div id="locationSuggestions"></div>
+  </div>
+  <div id="locationsList"></div>
+  <div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const API_KEY = '54e9fa50b7c99e471e715c740dc958af';
+const TILE_URL = 'https://tile.openweathermap.org/map';
+let map, currentLayer;
+
+// Initialise map
+function initMap() {
+  map = L.map('map').setView([43.7, -79.4], 6);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '©OpenStreetMap ©CARTO'
+  }).addTo(map);
+}
+
+// Add location weather info
+async function addLocation(city) {
+  if (!city) return;
+  const geo = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${API_KEY}`);
+  const g = await geo.json();
+  if (!g.length) { alert('Location not found'); return; }
+  const { lat, lon, name, country } = g[0];
+  const marker = L.marker([lat, lon]).addTo(map).bindPopup(`${name}, ${country}`).openPopup();
+  saveLocation(`${name},${country}`);
+  updateLocationList();
+}
+
+// Save/remove in localStorage
+function getSaved() {
+  return JSON.parse(localStorage.getItem('savedLocations')||'[]');
+}
+function saveLocation(city) {
+  const saved = getSaved();
+  if (!saved.includes(city)) {
+    saved.push(city);
+    localStorage.setItem('savedLocations', JSON.stringify(saved));
+  }
+}
+function removeLocation(city) {
+  const saved = getSaved().filter(c => c !== city);
+  localStorage.setItem('savedLocations', JSON.stringify(saved));
+  updateLocationList();
+}
+
+// Display list with delete buttons
+function updateLocationList() {
+  const div = document.getElementById('locationsList');
+  div.innerHTML = '';
+  getSaved().forEach(city => {
+    const d = document.createElement('div');
+    d.textContent = city;
+    const x = document.createElement('span');
+    x.textContent = '✕';
+    x.onclick = () => { removeLocation(city); };
+    d.appendChild(x);
+    div.appendChild(d);
+  });
+}
+
+// Layer toggle
+function setLayer(type) {
+  if (currentLayer) map.removeLayer(currentLayer);
+  const layers = {
+    precipitation: { code: 'precipitation_new', opacity: 0.7 },
+    temperature:   { code: 'temp_new',          opacity: 0.6 },
+    clouds:        { code: 'clouds_new',        opacity: 0.6 }
+  };
+  const l = layers[type];
+  currentLayer = L.tileLayer(`${TILE_URL}/${l.code}/{z}/{x}/{y}.png?appid=${API_KEY}`, {
+    opacity: l.opacity,
+    attribution: 'Weather data © OpenWeatherMap'
+  }).addTo(map);
+}
+
+// Autocomplete
+const input = document.getElementById('locationInput');
+const suggestions = document.getElementById('locationSuggestions');
+input.addEventListener('input', async () => {
+  suggestions.innerHTML = '';
+  const q = input.value.trim();
+  if (!q) return;
+  const r = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(q)}&limit=5&appid=${API_KEY}`);
+  const list = await r.json();
+  list.forEach(loc => {
+    const div = document.createElement('div');
+    div.textContent = `${loc.name}${loc.state ? ', ' + loc.state : ''}, ${loc.country}`;
+    div.onclick = () => {
+      addLocation(div.textContent);
+      suggestions.innerHTML = '';
+      input.value = '';
+    };
+    suggestions.appendChild(div);
+  });
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#locationInput')) suggestions.innerHTML = '';
+});
+
+// Init everything
+document.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  // load saved + Toronto default
+  if (!getSaved().length) saveLocation('Toronto,CA');
+  getSaved().forEach(c => addLocation(c));
+  updateLocationList();
+  // buttons
+  document.getElementById('addLocationBtn').onclick = () => {
+    if (input.value.trim()) addLocation(input.value.trim());
+  };
+  document.querySelectorAll('button[data-layer]').forEach(btn => {
+    btn.onclick = () => setLayer(btn.dataset.layer);
+  });
+});
+</script>
+</body>
+</html>
