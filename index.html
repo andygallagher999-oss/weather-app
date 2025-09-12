@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌦️ Real Weather Radar App</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body,html{height:100%;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;}
+body{background:#e0eafc;display:flex;flex-direction:column;}
+#appContainer{display:flex;flex:1;overflow:hidden;}
+#sidebar{width:320px;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);display:flex;flex-direction:column;transition:transform 0.3s ease;overflow:hidden;}
+#sidebar.collapsed{transform:translateX(-100%);}
+#sidebarHeader{padding:20px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;text-align:center;}
+#sidebarHeader h1{font-size:20px;margin-bottom:5px;}
+#controls{padding:15px;flex:1;overflow-y:auto;}
+.control-group{margin-bottom:20px;}
+.control-group label{display:block;margin-bottom:5px;font-weight:600;}
+.location-input{width:100%;padding:10px;border-radius:8px;border:1px solid #ccc;font-size:14px;}
+.btn{width:100%;padding:10px;border:none;border-radius:8px;font-weight:600;cursor:pointer;margin-top:10px;}
+.btn-primary{background:linear-gradient(135deg,#667eea,#764ba2);color:white;}
+.locations-list{max-height:200px;overflow-y:auto;margin-top:10px;border-radius:8px;border:1px solid #ddd;}
+.location-item{padding:8px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee;}
+.location-item:last-child{border-bottom:none;}
+.remove-btn{color:#dc3545;font-weight:bold;cursor:pointer;}
+#weatherInfo{margin-top:15px;padding:10px;background:white;border-radius:8px;border:1px solid #ddd;font-size:14px;}
+#map{flex:1;position:relative;}
+.radar-controls{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;z-index:1000;}
+.radar-btn{margin:5px 0;padding:8px 12px;border:none;border-radius:6px;font-weight:600;cursor:pointer;color:white;}
+.radar-precipitation{background:#28a745;}
+.radar-temperature{background:#fd7e14;}
+.radar-clouds{background:#6f42c1;}
+#radarLegend{position:absolute;bottom:10px;left:10px;background:rgba(255,255,255,0.9);padding:10px;border-radius:6px;z-index:1000;font-size:12px;}
+#toggleSidebar{display:none;}
+@media(max-width:768px){
+    #sidebar{position:absolute;z-index:1001;height:100vh;left:0;top:0;}
+    #toggleSidebar{display:block;position:absolute;top:10px;left:10px;z-index:1100;background:#fff;border-radius:50%;padding:8px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);}
+    #map{height:100vh;}
+}
+#locationSuggestions{position:absolute;background:white;border:1px solid #ddd;width:calc(100% - 30px);max-height:150px;overflow-y:auto;border-radius:6px;z-index:1002;}
+#locationSuggestions div{padding:8px;cursor:pointer;border-bottom:1px solid #eee;}
+#locationSuggestions div:last-child{border-bottom:none;}
+#locationSuggestions div:hover{background:#f0f0f0;}
+</style>
+</head>
+<body>
+<div id="toggleSidebar">☰</div>
+<div id="appContainer">
+    <div id="sidebar">
+        <div id="sidebarHeader">
+            <h1>🌦️ Real Weather Radar</h1>
+            <p>Live Weather & Radar</p>
+        </div>
+        <div id="controls">
+            <div class="control-group" style="position:relative;">
+                <label>Add Location</label>
+                <input type="text" id="locationInput" class="location-input" placeholder="Enter city name...">
+                <div id="locationSuggestions"></div>
+                <button class="btn btn-primary" id="addLocationBtn">Add Location</button>
+            </div>
+            <div class="control-group">
+                <label>Your Locations</label>
+                <div class="locations-list" id="locationsList">
+                    <div class="loading">Loading locations...</div>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>Weather Info</label>
+                <div id="weatherInfo">
+                    <h3>Select a location</h3>
+                    <p>Click on a location to see weather details</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="map"></div>
+</div>
+<div class="radar-controls">
+    <button class="radar-btn radar-precipitation" onclick="toggleRadarLayer('precipitation')">🌧️ Precipitation</button>
+    <button class="radar-btn radar-temperature" onclick="toggleRadarLayer('temperature')">🌡️ Temperature</button>
+    <button class="radar-btn radar-clouds" onclick="toggleRadarLayer('clouds')">☁️ Clouds</button>
+</div>
+<div id="radarLegend">
+    <strong>Radar Legend:</strong><br>
+    🌧️ Precipitation: Light → Dark Green<br>
+    🌡️ Temperature: Blue → Red<br>
+    ☁️ Clouds: Light → Dark Purple
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const API_CONFIG={
+    OPENWEATHER_API_KEY:'e1b3a19a50cf215e856e091a6073636f',
+    OPENWEATHER_BASE:'https://api.openweathermap.org/data/2.5',
+    OPENWEATHER_TILES:'https://tile.openweathermap.org/map'
+};
+let map,locations={},markers={},currentRadarLayer=null,searchTimeout=null;
+
+// Initialize map
+function initializeApp(){
+    map=L.map('map').setView([43.6532,-79.3832],5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+        attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19
+    }).addTo(map);
+    loadDefaultLocations();
+}
+
+// Geocoding
+async function geocodeLocation(name){
+    try{
+        const resp=await fetch(`${API_CONFIG.OPENWEATHER_BASE}/geo/1.0/direct?q=${encodeURIComponent(name)}&limit=5&appid=${API_CONFIG.OPENWEATHER_API_KEY}`);
+        if(!resp.ok)throw new Error('Geo API error');
+        return await resp.json();
+    }catch(e){console.error(e);return[];}
+}
+
+// Get weather
+async function getWeatherData(lat,lon){
+    try{
+        const resp=await fetch(`${API_CONFIG.OPENWEATHER_BASE}/weather?lat=${lat}&lon=${lon}&appid=${API_CONFIG.OPENWEATHER_API_KEY}&units=metric`);
+        if(!resp.ok)throw new Error('Weather API error');
+        return await resp.json();
+    }catch(e){console.error(e);return null;}
+}
+
+// Add location
+async function addLocation(selectedName){
+    const input=document.getElementById('locationInput');
+    const name=selectedName||input.value.trim();
+    if(!name)return;
+    const results=await geocodeLocation(name);
+    if(!results||results.length===0)return alert('Location not found');
+    const loc=results[0];
+    const fullName=`${loc.name},${loc.country||''}`;
+    if(locations[fullName])return;
+    const weather=await getWeatherData(loc.lat,loc.lon);
+    if(!weather)return;
+    locations[fullName]={coords:[loc.lat,loc.lon],weather};
+    localStorage.setItem('savedLocations',JSON.stringify(Object.keys(locations)));
+    addMarkerToMap(fullName,[loc.lat,loc.lon],weather);
+    addLocationToSidebar(fullName,weather);
+    input.value='';
+}
+
+// Map markers
+function addMarkerToMap(name,coords,weather){
+    const marker=L.marker(coords).addTo(map);
+    marker.bindPopup(`<h3>${name}</h3><p>${weather.weather[0].description}, ${Math.round(weather.main.temp)}°C</p>`);
+    markers[name]=marker;
+    marker.on('click',()=>focusLocation(name));
+}
+
+// Sidebar list
+function addLocationToSidebar(name,weather){
+    const container=document.getElementById('locationsList');
+    const div=document.createElement('div');
+    div.className='location-item';
+    div.innerHTML=`<div>${name}</div><span class="remove-btn">&times;</span>`;
+    div.querySelector('.remove-btn').onclick=e=>{e.stopPropagation();removeLocation(name,div);};
+    div.onclick=()=>focusLocation(name);
+    container.appendChild(div);
+}
+
+// Remove location
+function removeLocation(name,el){
+    if(markers[name])map.removeLayer(markers[name]);
+    delete markers[name]; delete locations[name];
+    el.remove();
+    localStorage.setItem('savedLocations',JSON.stringify(Object.keys(locations)));
+}
+
+// Focus location
+function focusLocation(name){
+    if(!locations[name])return;
+    const coords=locations[name].coords;
+    map.setView(coords,10);
+    markers[name].openPopup();
+    updateWeatherInfo(name,locations[name].weather);
+}
+
+// Weather info
+function updateWeatherInfo(name,weather){
+    const info=document.getElementById('weatherInfo');
+    info.innerHTML=`<h3>${name}</h3>
+    <p>Temp: ${Math.round(weather.main.temp)}°C (Feels like ${Math.round(weather.main.feels_like)}°C)</p>
+    <p>Conditions: ${weather.weather[0].description}</p>
+    <p>Humidity: ${weather.main.humidity}% | Wind: ${weather.wind.speed} m/s</p>
+    <p>Pressure: ${weather.main.pressure} hPa</p>`;
+}
+
+// Default locations
+async function loadDefaultLocations(){
+    const saved=JSON.parse(localStorage.getItem('savedLocations')||'[]');
+    const defaultCities=['Toronto,CA','London,CA','Minden,CA'];
+    const cities=saved.length?saved:defaultCities;
+    for(const name of cities){
+        await addLocation(name);
+    }
+}
+
+// Radar layers
+function toggleRadarLayer(type){
+    if(currentRadarLayer)map.removeLayer(currentRadarLayer);
+    const layers={precipitation:'precipitation_new',temperature:'temp_new',clouds:'clouds_new'};
+    const url=`${API_CONFIG.OPENWEATHER_TILES}/${layers[type]}/{z}/{x}/{y}.png?appid=${API_CONFIG.OPENWEATHER_API_KEY}`;
+    currentRadarLayer=L.tileLayer(url,{opacity:0.7}).addTo(map);
+}
+
+// Event listeners
+document.getElementById('addLocationBtn').addEventListener('click',()=>addLocation());
+document.getElementById('toggleSidebar').addEventListener('click',()=>document.getElementById('sidebar').classList.toggle('collapsed'));
+
+// Autocomplete
+const input=document.getElementById('locationInput');
+const sugg=document.getElementById('locationSuggestions');
+input.addEventListener('input',()=>{
+    clearTimeout(searchTimeout);
+    const q=input.value.trim();
+    if(!q){sugg.innerHTML=''; return;}
+    searchTimeout=setTimeout(async()=>{
+        const results=await geocodeLocation(q);
+        sugg.innerHTML='';
+        results.forEach(loc=>{
+            const div=document.createElement('div');
+            div.textContent=`${loc.name}, ${loc.country||''}`;
+            div.onclick=()=>{addLocation(`${loc.name},${loc.country||''}`); sugg.innerHTML='';};
+            sugg.appendChild(div);
+        });
+    },300);
+});
+
+initializeApp();
+</script>
+</body>
+</html>
