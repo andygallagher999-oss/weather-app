@@ -191,7 +191,7 @@ function updateWeatherInfo(name,weather){
 // Load default or saved locations
 async function loadDefaultLocations(){
     const saved=JSON.parse(localStorage.getItem('savedLocations')||'[]');
-    const defaultCities=['Toronto,ON,CA','London,ON,CA'];
+    const defaultCities=['Toronto,ON,CA'];
     const cities=[...new Set([...defaultCities,...saved])];
     document.getElementById('locationsList').innerHTML='';
     for(const city of cities){
