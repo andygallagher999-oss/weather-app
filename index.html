@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather Radar App</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height:100vh; display:flex; flex-direction:column; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+
+.app-container { 
+  display:flex; 
+  flex-direction:column; 
+  height:100%; 
+  backdrop-filter: blur(10px);
+  background: rgba(255,255,255,0.1);
+}
+
+.sidebar { 
+  background: rgba(255,255,255,0.95); 
+  padding:20px; 
+  max-height:45%; 
+  overflow-y:auto; 
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+.map-container { flex-grow:1; position:relative; }
+#map { width:100%; height:100%; }
+
+.control-group { 
+  margin-bottom:20px; 
+  background: rgba(255,255,255,0.8);
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.control-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #2c3e50;
+}
+
+.location-input { 
+  width:calc(100% - 100px); 
+  padding:10px 15px; 
+  font-size:14px; 
+  border: 2px solid #e1e8ed;
+  border-radius: 8px;
+  transition: border-color 0.3s ease;
+}
+
+.location-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.btn { 
+  padding:10px 16px; 
+  margin-left:8px; 
+  cursor:pointer; 
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn:hover { 
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.radar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.radar-btn {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.3s ease;
+  background: rgba(102, 126, 234, 0.1);
+  border: 2px solid transparent;
+}
+
+.radar-btn:hover {
+  background: rgba(102, 126, 234, 0.2);
+}
+
+.radar-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+}
+
+.locations-list { 
+  max-height:150px; 
+  overflow-y:auto; 
+  margin-top:10px; 
+  border-radius: 8px;
+}
+
+.location-item { 
+  padding:12px 15px; 
+  cursor:pointer; 
+  display:flex; 
+  justify-content:space-between; 
+  border-bottom:1px solid #e1e8ed; 
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.location-item:hover { 
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+  transform: translateX(4px);
+}
+
+.location-item:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.location-item:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  border-bottom: none;
+}
+
+.delete-btn {
+  color: #e74c3c;
+  font-weight: bold;
+  font-size: 16px;
+  transition: color 0.2s ease;
+}
+
+.delete-btn:hover {
+  color: #c0392b;
+}
+
+.legend { 
+  position:absolute; 
+  bottom:20px; 
+  left:20px; 
+  background: rgba(255,255,255,0.95); 
+  padding:15px; 
+  border-radius:12px; 
+  font-size:12px; 
+  box-shadow:0 4px 20px rgba(0,0,0,0.15);
+  backdrop-filter: blur(10px);
+  max-width: 200px;
+}
+
+.status-bar { 
+  position:absolute; 
+  top:20px; 
+  right:20px; 
+  background: rgba(255,255,255,0.95); 
+  padding:10px 15px; 
+  border-radius:8px; 
+  font-size:12px; 
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  backdrop-filter: blur(10px);
+}
+
+.weather-info {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  background: rgba(255,255,255,0.95);
+  padding: 15px;
+  border-radius: 12px;
+  font-size: 14px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  backdrop-filter: blur(10px);
+  min-width: 200px;
+  display: none;
+}
+
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255,255,255,0.95);
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 16px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+@media(max-width:768px){ 
+  .app-container{flex-direction:column;} 
+  .sidebar{max-height:40%;} 
+  .btn { margin-left: 0; margin-top: 8px; width: 100%; }
+  .location-input { width: 100%; }
+  .radar-buttons { justify-content: center; }
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+  <div class="sidebar">
+    <div class="control-group">
+      <label>📍 Add Location</label>
+      <input type="text" id="locationInput" class="location-input" placeholder="Enter city name (e.g., Vancouver, Montreal)...">
+      <button class="btn" id="addLocationBtn">Add Location</button>
+      <div class="locations-list" id="locationsList"></div>
+    </div>
+    <div class="control-group">
+      <label>🌦️ Weather Radar Layers</label>
+      <div class="radar-buttons">
+        <button class="radar-btn" onclick="window.weatherApp.toggleRadar('precipitation')">🌧️ Precipitation</button>
+        <button class="radar-btn" onclick="window.weatherApp.toggleRadar('temperature')">🌡️ Temperature</button>
+        <button class="radar-btn" onclick="window.weatherApp.toggleRadar('clouds')">☁️ Clouds</button>
+        <button class="radar-btn" onclick="window.weatherApp.toggleRadar('wind')">💨 Wind</button>
+        <button class="radar-btn" onclick="window.weatherApp.clearRadar()">🔄 Clear</button>
+      </div>
+    </div>
+  </div>
+  <div class="map-container">
+    <div id="map">
+      <div class="loading" id="loading">
+        Loading weather radar...
+      </div>
+    </div>
+    <div class="legend" id="legend">
+      <strong>Weather Radar</strong><br>
+      Select a radar layer above to view weather data overlays on the map.
+    </div>
+    <div class="status-bar" id="statusBar">Initializing...</div>
+    <div class="weather-info" id="weatherInfo"></div>
+  </div>
+</div>
+
+<script>
+// Weather App - Initialize after all resources load
+window.weatherApp = {};
+
+// Wait for everything to load
+window.addEventListener('load', function() {
+  // Create script element for Leaflet
+  const leafletScript = document.createElement('script');
+  leafletScript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  leafletScript.onload = function() {
+    initializeWeatherApp();
+  };
+  leafletScript.onerror = function() {
+    document.getElementById('loading').innerHTML = 'Error loading map library. Please refresh the page.';
+  };
+  document.head.appendChild(leafletScript);
+});
+
+function initializeWeatherApp() {
+  // Hide loading indicator
+  document.getElementById('loading').style.display = 'none';
+  
+  // App variables
+  let map, currentRadar = null, currentRadarType = null;
+  let locations = {}, markers = {};
+  
+  // Mock weather data for demonstration
+  const mockWeatherData = {
+    'Toronto': { temp: 22, humidity: 65, wind: 12, condition: 'Partly Cloudy', precipitation: 0 },
+    'Vancouver': { temp: 18, humidity: 72, wind: 8, condition: 'Overcast', precipitation: 2.3 },
+    'Montreal': { temp: 20, humidity: 58, wind: 15, condition: 'Clear', precipitation: 0 },
+    'Calgary': { temp: 16, humidity: 45, wind: 22, condition: 'Windy', precipitation: 0 },
+    'Ottawa': { temp: 19, humidity: 62, wind: 10, condition: 'Light Rain', precipitation: 1.2 },
+    'Edmonton': { temp: 14, humidity: 55, wind: 18, condition: 'Cloudy', precipitation: 0 },
+    'Winnipeg': { temp: 17, humidity: 60, wind: 14, condition: 'Clear', precipitation: 0 },
+    'Halifax': { temp: 21, humidity: 78, wind: 16, condition: 'Foggy', precipitation: 0.5 }
+  };
+
+  // Available Canadian cities for demo
+  const availableCities = {
+    'Toronto': { lat: 43.6532, lon: -79.3832 },
+    'Vancouver': { lat: 49.2827, lon: -123.1207 },
+    'Montreal': { lat: 45.5017, lon: -73.5673 },
+    'Calgary': { lat: 51.0447, lon: -114.0719 },
+    'Ottawa': { lat: 45.4215, lon: -75.6972 },
+    'Edmonton': { lat: 53.5461, lon: -113.4938 },
+    'Winnipeg': { lat: 49.8951, lon: -97.1384 },
+    'Halifax': { lat: 44.6488, lon: -63.5752 }
+  };
+
+  // Initialize map
+  map = L.map('map', {
+    zoomControl: true,
+    attributionControl: true
+  }).setView([56.1304, -106.3468], 4); // Center on Canada
+
+  // Use a more attractive base map
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Default locations
+  const defaultLocations = {
+    'Toronto': { lat: 43.6532, lon: -79.3832 },
+    'Vancouver': { lat: 49.2827, lon: -123.1207 },
+    'Montreal': { lat: 45.5017, lon: -73.5673 }
+  };
+
+  // Initialize with default locations
+  locations = { ...defaultLocations };
+
+  // Update status function
+  function updateStatus(msg) {
+    const now = new Date();
+    const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    document.getElementById('statusBar').textContent = `${timeStr} • ${msg}`;
+  }
+
+  // Add marker function
+  function addMarker(name, coords) {
+    // Create custom icon based on weather condition
+    const weather = mockWeatherData[name];
+    let iconHtml = '📍';
+    if (weather) {
+      if (weather.condition.includes('Rain')) iconHtml = '🌧️';
+      else if (weather.condition.includes('Cloud') || weather.condition.includes('Overcast')) iconHtml = '☁️';
+      else if (weather.condition.includes('Clear')) iconHtml = '☀️';
+      else if (weather.condition.includes('Snow')) iconHtml = '❄️';
+      else if (weather.condition.includes('Fog')) iconHtml = '🌫️';
+    }
+    
+    const customIcon = L.divIcon({
+      html: `<div style="background: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-size: 16px;">${iconHtml}</div>`,
+      className: 'custom-marker',
+      iconSize: [30, 30],
+      iconAnchor: [15, 15]
+    });
+    
+    const marker = L.marker([coords.lat, coords.lon], { icon: customIcon }).addTo(map);
+    
+    let popupContent = `<div style="text-align: center; min-width: 150px;">
+      <h3 style="margin: 0 0 10px 0; color: #2c3e50;">${name}</h3>`;
+    
+    if (weather) {
+      popupContent += `
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+        <div><strong>🌡️ ${weather.temp}°C</strong></div>
+        <div>💧 ${weather.humidity}%</div>
+        <div>💨 ${weather.wind} km/h</div>
+        <div>🌧️ ${weather.precipitation}mm</div>
+      </div>
+      <div style="margin-top: 8px; padding: 4px 8px; background: #f8f9fa; border-radius: 4px; font-size: 11px;">
+        ${weather.condition}
+      </div>`;
+    }
+    
+    popupContent += `</div>`;
+    
+    marker.bindPopup(popupContent);
+    marker.on('click', () => {
+      focusLocation(name);
+      showWeatherInfo(name);
+    });
+    markers[name] = marker;
+  }
+
+  // Show weather info panel
+  function showWeatherInfo(name) {
+    const weather = mockWeatherData[name];
+    const panel = document.getElementById('weatherInfo');
+    
+    if (weather) {
+      panel.innerHTML = `
+        <h3 style="margin: 0 0 10px 0; color: #2c3e50;">${name} Weather</h3>
+        <div style="display: grid; gap: 8px;">
+          <div style="display: flex; justify-content: space-between;">
+            <span>🌡️ Temperature:</span> <strong>${weather.temp}°C</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>💧 Humidity:</span> <strong>${weather.humidity}%</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>💨 Wind:</span> <strong>${weather.wind} km/h</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>🌧️ Precipitation:</span> <strong>${weather.precipitation}mm</strong>
+          </div>
+          <div style="margin-top: 8px; padding: 8px; background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%); border-radius: 6px; text-align: center;">
+            <strong>${weather.condition}</strong>
+          </div>
+        </div>
+      `;
+      panel.style.display = 'block';
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+
+  // Add to sidebar
+  function addSidebarItem(name, coords) {
+    const list = document.getElementById('locationsList');
+    const div = document.createElement('div');
+    div.className = 'location-item';
+    
+    const weather = mockWeatherData[name];
+    const tempInfo = weather ? ` (${weather.temp}°C)` : '';
+    
+    div.innerHTML = `
+      <span style="font-weight: 500;">${name}${tempInfo}</span>
+      <span class="delete-btn" title="Remove location">&times;</span>
+    `;
+    
+    div.onclick = () => focusLocation(name);
+    div.querySelector('.delete-btn').onclick = (e) => {
+      e.stopPropagation();
+      removeLocation(name);
+    };
+    
+    list.appendChild(div);
+  }
+
+  // Focus location
+  function focusLocation(name) {
+    const coords = locations[name];
+    map.setView([coords.lat, coords.lon], 10);
+    if (markers[name]) {
+      markers[name].openPopup();
+    }
+    updateStatus(`Focused on ${name}`);
+    showWeatherInfo(name);
+  }
+
+  // Remove location
+  function removeLocation(name) {
+    if (markers[name]) {
+      map.removeLayer(markers[name]);
+      delete markers[name];
+    }
+    delete locations[name];
+    
+    // Rebuild sidebar
+    document.getElementById('locationsList').innerHTML = '';
+    for (const n in locations) {
+      addSidebarItem(n, locations[n]);
+    }
+    
+    updateStatus(`${name} removed`);
+    document.getElementById('weatherInfo').style.display = 'none';
+  }
+
+  // Create radar overlay helper
+  function createRadarOverlay(color, intensity) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 150;
+    const ctx = canvas.getContext('2d');
+    
+    // Create gradient effect
+    const gradient = ctx.createRadialGradient(100, 75, 0, 100, 75, 100);
+    gradient.addColorStop(0, color + Math.floor(intensity * 255).toString(16).padStart(2, '0'));
+    gradient.addColorStop(0.5, color + '40');
+    gradient.addColorStop(1, color + '10');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 200, 150);
+    
+    // Add some random spots to simulate weather patterns
+    for (let i = 0; i < 10; i++) {
+      const x = Math.random() * 200;
+      const y = Math.random() * 150;
+      const radius = Math.random() * 20 + 5;
+      
+      const spotGradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      spotGradient.addColorStop(0, color + '80');
+      spotGradient.addColorStop(1, color + '20');
+      
+      ctx.fillStyle = spotGradient;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    
+    return canvas.toDataURL();
+  }
+
+  // Update legend
+  function updateLegend(type) {
+    const legend = document.getElementById('legend');
+    
+    switch (type) {
+      case 'precipitation':
+        legend.innerHTML = `
+          <strong>🌧️ Precipitation</strong><br>
+          <div style="margin-top: 8px; font-size: 11px;">
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #4A90E2; margin-right: 5px; opacity: 0.3;"></div>
+              Light rain
+            </div>
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #4A90E2; margin-right: 5px; opacity: 0.6;"></div>
+              Moderate rain
+            </div>
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #4A90E2; margin-right: 5px; opacity: 0.9;"></div>
+              Heavy rain
+            </div>
+          </div>
+        `;
+        break;
+      case 'temperature':
+        legend.innerHTML = `
+          <strong>🌡️ Temperature</strong><br>
+          <div style="margin-top: 8px; font-size: 11px;">
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #3498DB; margin-right: 5px;"></div>
+              Cold (&lt;10°C)
+            </div>
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #F39C12; margin-right: 5px;"></div>
+              Moderate (10-25°C)
+            </div>
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #E74C3C; margin-right: 5px;"></div>
+              Warm (&gt;25°C)
+            </div>
+          </div>
+        `;
+        break;
+      case 'clouds':
+        legend.innerHTML = `
+          <strong>☁️ Cloud Cover</strong><br>
+          <div style="margin-top: 8px; font-size: 11px;">
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #95A5A6; margin-right: 5px; opacity: 0.3;"></div>
+              Light clouds
+            </div>
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #95A5A6; margin-right: 5px; opacity: 0.6;"></div>
+              Partly cloudy
+            </div>
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #95A5A6; margin-right: 5px; opacity: 0.9;"></div>
+              Overcast
+            </div>
+          </div>
+        `;
+        break;
+      case 'wind':
+        legend.innerHTML = `
+          <strong>💨 Wind Speed</strong><br>
+          <div style="margin-top: 8px; font-size: 11px;">
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #2ECC71; margin-right: 5px; opacity: 0.3;"></div>
+              Light (&lt;15 km/h)
+            </div>
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #2ECC71; margin-right: 5px; opacity: 0.6;"></div>
+              Moderate (15-30 km/h)
+            </div>
+            <div style="display: flex; align-items: center; margin: 2px 0;">
+              <div style="width: 15px; height: 10px; background: #2ECC71; margin-right: 5px; opacity: 0.9;"></div>
+              Strong (&gt;30 km/h)
+            </div>
+          </div>
+        `;
+        break;
+      default:
+        legend.innerHTML = `
+          <strong>Weather Radar</strong><br>
+          <span style="font-size: 11px;">Select a radar layer above to view weather data overlays on the map.</span>
+        `;
+    }
+  }
+
+  // Radar layers simulation
+  window.weatherApp.toggleRadar = function(type) {
+    // Clear existing radar
+    if (currentRadar) {
+      map.removeLayer(currentRadar);
+      currentRadar = null;
+    }
+    
+    // Remove active class from all radar buttons
+    document.querySelectorAll('.radar-btn').forEach(btn => btn.classList.remove('active'));
+    
+    if (currentRadarType === type) {
+      currentRadarType = null;
+      updateLegend('none');
+      updateStatus('Radar layer cleared');
+      return;
+    }
+    
+    // Add active class to clicked button
+    event.target.classList.add('active');
+    
+    // Create mock radar overlay
+    currentRadarType = type;
+    
+    const bounds = [
+      [41.0, -141.0], // Southwest
+      [70.0, -52.0]   // Northeast (covers Canada)
+    ];
+    
+    // Use different colored overlays to simulate different radar types
+    let overlayUrl;
+    let opacity = 0.4;
+    
+    switch (type) {
+      case 'precipitation':
+        overlayUrl = createRadarOverlay('#4A90E2', 0.3);
+        break;
+      case 'temperature':
+        overlayUrl = createRadarOverlay('#FF6B6B', 0.4);
+        break;
+      case 'clouds':
+        overlayUrl = createRadarOverlay('#95A5A6', 0.3);
+        break;
+      case 'wind':
+        overlayUrl = createRadarOverlay('#2ECC71', 0.4);
+        break;
+    }
+    
+    if (overlayUrl) {
+      currentRadar = L.imageOverlay(overlayUrl, bounds, { opacity }).addTo(map);
+    }
+    
+    updateLegend(type);
+    updateStatus(`${type.charAt(0).toUpperCase() + type.slice(1)} radar activated`);
+  }
+
+  window.weatherApp.clearRadar = function() {
+    if (currentRadar) {
+      map.removeLayer(currentRadar);
+      currentRadar = null;
+      currentRadarType = null;
+    }
+    
+    // Remove active class from all radar buttons
+    document.querySelectorAll('.radar-btn').forEach(btn => btn.classList.remove('active'));
+    
+    updateLegend('none');
+    updateStatus('All radar layers cleared');
+  }
+
+  // Add location button
+  document.getElementById('addLocationBtn').onclick = function() {
+    const input = document.getElementById('locationInput');
+    const cityName = input.value.trim();
+    
+    if (!cityName) {
+      updateStatus('Please enter a city name');
+      return;
+    }
+    
+    // Check if city is available in our mock data
+    const foundCity = Object.keys(availableCities).find(city => 
+      city.toLowerCase().includes(cityName.toLowerCase()) || 
+      cityName.toLowerCase().includes(city.toLowerCase())
+    );
+    
+    if (foundCity && !locations[foundCity]) {
+      const coords = availableCities[foundCity];
+      locations[foundCity] = coords;
+      addMarker(foundCity, coords);
+      addSidebarItem(foundCity, coords);
+      updateStatus(`${foundCity} added successfully`);
+      input.value = '';
+      
+      // Focus on the new location
+      setTimeout(() => focusLocation(foundCity), 500);
+    } else if (locations[foundCity]) {
+      updateStatus(`${foundCity} is already on the map`);
+      focusLocation(foundCity);
+    } else {
+      updateStatus(`City not found. Try: ${Object.keys(availableCities).slice(0, 3).join(', ')}, etc.`);
+    }
+  };
+
+  // Allow Enter key to add location
+  document.getElementById('locationInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      document.getElementById('addLocationBtn').click();
+    }
+  });
+
+  // Click map to add location with reverse geocoding
+  map.on('click', async function(e) {
+    const { lat, lng } = e.latlng;
+    
+    updateStatus('Finding location...');
+    
+    try {
+      // Use OpenWeatherMap reverse geocoding
+      const response = await fetch(
+        `https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lng}&limit=1&appid=${API_KEY}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Reverse geocoding failed');
+      }
+      
+      const data = await response.json();
+      
+      if (data.length === 0) {
+        updateStatus('No location found at this point');
+        return;
+      }
+      
+      const location = data[0];
+      const name = location.name + (location.country ? `, ${location.country}` : '');
+      const coords = { lat, lon: lng };
+      
+      // Check if already exists
+      if (locations[name]) {
+        updateStatus(`${name} is already on the map`);
+        focusLocation(name);
+        return;
+      }
+      
+      // Add the new location
+      locations[name] = coords;
+      await addMarker(name, coords);
+      addSidebarItem(name, coords);
+      updateStatus(`${name} added by map click`);
+      
+      // Focus on the new location
+      setTimeout(() => focusLocation(name), 500);
+      
+    } catch (error) {
+      console.error('Error with reverse geocoding:', error);
+      updateStatus('Could not identify location');
+    }
+  }); null;
+    let minDistance = Infinity;
+    
+    for (const [name, coords] of Object.entries(availableCities)) {
+      if (!locations[name]) {
+        const distance = Math.sqrt(
+          Math.pow(coords.lat - lat, 2) + Math.pow(coords.lon - lng, 2)
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestCity = name;
+        }
+      }
+    }
+    
+    if (nearestCity && minDistance < 10) { // Within reasonable range
+      locations[nearestCity] = availableCities[nearestCity];
+      addMarker(nearestCity, availableCities[nearestCity]);
+      addSidebarItem(nearestCity, availableCities[nearestCity]);
+      updateStatus(`${nearestCity} added by map click`);
+      setTimeout(() => focusLocation(nearestCity), 500);
+    } else {
+      updateStatus('No nearby cities available. Try using the search box.');
+    }
+  });
+
+  // Add markers & sidebar for default locations
+  for (const name in locations) {
+    await addMarker(name, locations[name]);
+    addSidebarItem(name, locations[name]);
+  }
+
+  // Initialize status
+  updateStatus('Weather radar ready • Real weather data loaded');
+
+  // Hide weather info when clicking elsewhere on map
+  map.on('click', function() {
+    setTimeout(() => {
+      if (!event.target.closest('.leaflet-popup')) {
+        document.getElementById('weatherInfo').style.display = 'none';
+      }
+    }, 100);
+  });
+}
+</script>
