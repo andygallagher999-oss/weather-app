@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real Weather Radar App</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+    * {margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:Arial,sans-serif;background:#1e3c72;display:flex;flex-direction:column;height:100vh;}
+    .app-container{display:flex;flex:1;overflow:hidden;}
+    .sidebar{width:320px;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);display:flex;flex-direction:column;transition:all 0.3s ease;overflow:hidden;}
+    .sidebar-header{padding:20px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;text-align:center;}
+    .sidebar-header h1{font-size:22px;margin-bottom:5px;}
+    .controls{padding:15px;flex:1;overflow-y:auto;}
+    .control-group{margin-bottom:20px;}
+    .control-group label{display:block;margin-bottom:8px;font-weight:600;color:#333;}
+    .location-input{width:100%;padding:10px 12px;border:2px solid #e1e5e9;border-radius:8px;font-size:14px;}
+    .location-input:focus{outline:none;border-color:#667eea;box-shadow:0 0 0 3px rgba(102,126,234,0.2);}
+    .btn{width:100%;padding:12px;border:none;border-radius:8px;font-weight:600;text-transform:uppercase;cursor:pointer;margin-top:5px;}
+    .btn-primary{background:linear-gradient(135deg,#667eea,#764ba2);color:white;}
+    .btn-primary:hover{transform:translateY(-2px);box-shadow:0 5px 15px rgba(102,126,234,0.4);}
+    .locations-list{max-height:200px;overflow-y:auto;margin-top:5px;}
+    .location-item{padding:10px 12px;border-bottom:1px solid #e9ecef;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
+    .location-item:hover{background:#e9ecef;}
+    .remove-btn{color:#dc3545;font-weight:bold;cursor:pointer;}
+    .map-container{flex:1;position:relative;}
+    #map{width:100%;height:100%;}
+    .legend{position:absolute;bottom:15px;left:15px;background:rgba(255,255,255,0.95);padding:10px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.2);z-index:1000;font-size:12px;}
+    .legend-item{display:flex;align-items:center;margin:3px 0;}
+    .legend-color{width:20px;height:15px;margin-right:6px;border-radius:2px;}
+    .status-bar{position:absolute;top:15px;right:15px;background:rgba(255,255,255,0.95);padding:8px 10px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.2);z-index:1000;font-size:12px;}
+    .weather-info{background:white;border-radius:8px;padding:10px;margin-top:10px;border:1px solid #e9ecef;}
+    .weather-detail{display:flex;justify-content:space-between;margin:5px 0;font-size:14px;}
+    .autocomplete-container{position:relative;}
+    #suggestions{position:absolute;top:100%;left:0;width:100%;background:white;border:1px solid #e1e5e9;border-radius:6px;z-index:1000;max-height:150px;overflow-y:auto;}
+    #suggestions .location-item{padding:8px;cursor:pointer;}
+    #suggestions .location-item:hover{background:#f1f1f1;}
+    @media(max-width:768px){.sidebar{position:absolute;z-index:200;width:80%;height:100%;display:none;}.sidebar.show{display:flex;}.map-container{flex:1;}}
+</style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>🌦️ Real Weather Radar</h1>
+            <button id="sidebarToggle" style="margin-top:10px;padding:6px 10px;border:none;border-radius:6px;background:#fff;cursor:pointer;">Toggle Sidebar</button>
+        </div>
+        <div class="controls">
+            <div class="control-group autocomplete-container">
+                <label>Add Location</label>
+                <input type="text" id="locationInput" class="location-input" placeholder="Enter city name...">
+                <div id="suggestions"></div>
+                <button class="btn btn-primary" id="addLocationBtn">Add Location</button>
+            </div>
+            <div class="control-group">
+                <label>Your Locations</label>
+                <div class="locations-list" id="locationsList"></div>
+            </div>
+            <div class="control-group">
+                <label>Weather Radar Layers</label>
+                <button class="btn btn-primary" onclick="toggleRadar('precipitation')">🌧️ Precipitation Radar</button>
+                <button class="btn btn-primary" onclick="toggleRadar('temperature')">🌡️ Temperature Map</button>
+                <button class="btn btn-primary" onclick="toggleRadar('clouds')">☁️ Cloud Coverage</button>
+            </div>
+            <div class="weather-info" id="weatherInfo">
+                <h3>Select a location</h3>
+                <p>Click on a location to see detailed weather info</p>
+            </div>
+        </div>
+    </div>
+    <div class="map-container">
+        <div id="map"></div>
+        <div class="legend" id="legendItems"></div>
+        <div class="status-bar" id="statusBar">Initializing...</div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const API_KEY = '54e9fa50b7c99e471e715c740dc958af';
+let map, currentRadar=null, locations={}, markers={}, searchTimeout=null;
+
+// Initialize map with Carto Voyager
+function initMap(){
+    map = L.map('map').setView([43.6532,-79.3832], 5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+        attribution:'© <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
+        subdomains:'abcd',
+        maxZoom:19
+    }).addTo(map);
+
+    map.on('click', e => {
+        const lat=e.latlng.lat, lon=e.latlng.lng;
+        const name = prompt('Enter name for this location:');
+        if(name) addLocation(name,lat,lon);
+    });
+}
+
+// Add location
+async function addLocation(name, lat=null, lon=null){
+    if(!name) return;
+    let coords = [lat, lon];
+    if(!lat || !lon){
+        try{
+            const res = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(name)}&limit=1&appid=${API_KEY}`);
+            const data = await res.json();
+            if(!data || data.length===0){alert('Location not found'); return;}
+            coords = [data[0].lat,data[0].lon];
+            name = `${data[0].name}${data[0].state?', '+data[0].state:''}, ${data[0].country}`;
+        }catch(e){console.error(e);alert('Error fetching location'); return;}
+    }
+    const weather = await getWeather(coords[0],coords[1]);
+    if(!weather) return;
+    locations[name] = {coords,weather};
+    addMarker(name,coords,weather);
+    addSidebar(name,weather);
+    saveLocations();
+}
+
+// Get weather
+async function getWeather(lat,lon){
+    try{
+        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`);
+        if(!res.ok) throw new Error('Weather fetch error');
+        return await res.json();
+    }catch(e){console.error(e);alert('Error fetching weather'); return null;}
+}
+
+// Marker and sidebar
+function addMarker(name,coords,weather){
+    const marker = L.marker(coords).addTo(map);
+    marker.bindPopup(`<h3>${name}</h3><div>🌡️ ${Math.round(weather.main.temp)}°C</div><div>${weather.weather[0].description}</div>`);
+    marker.on('click', ()=>displayWeather(weather,name));
+    markers[name]=marker;
+}
+
+function addSidebar(name,weather){
+    const list = document.getElementById('locationsList');
+    const div = document.createElement('div');
+    div.className='location-item';
+    div.innerHTML=`<span>${name}</span><span class="remove-btn">&times;</span>`;
+    div.querySelector('.remove-btn').onclick = e=>{
+        e.stopPropagation();
+        removeLocation(name);
+    };
+    div.onclick = ()=>displayWeather(weather,name);
+    list.appendChild(div);
+}
+
+function displayWeather(weather,name){
+    const container = document.getElementById('weatherInfo');
+    container.innerHTML=`<h3>${name}</h3>
+        <div class="weather-detail"><strong>Temperature:</strong>${Math.round(weather.main.temp)}°C</div>
+        <div class="weather-detail"><strong>Feels Like:</strong>${Math.round(weather.main.feels_like)}°C</div>
+        <div class="weather-detail"><strong>Humidity:</strong>${weather.main.humidity}%</div>
+        <div class="weather-detail"><strong>Wind:</strong>${weather.wind.speed} m/s</div>
+        <div class="weather-detail"><strong>Condition:</strong>${weather.weather[0].description}</div>`;
+}
+
+// LocalStorage
+function saveLocations(){localStorage.setItem('locations',JSON.stringify(locations));}
+function loadLocations(){
+    const stored = localStorage.getItem('locations');
+    if(stored){locations=JSON.parse(stored);for(const name in locations)addMarker(name,locations[name].coords,locations[name].weather),addSidebar(name,locations[name].weather);}
+}
+
+// Remove
+function removeLocation(name){
+    if(markers[name]) map.removeLayer(markers[name]);
+    delete locations[name];
+    const list = document.getElementById('locationsList');
+    Array.from(list.children).forEach(c=>{if(c.textContent.includes(name)) c.remove();});
+    saveLocations();
+}
+
+// Radar layers
+function toggleRadar(type){
+    if(currentRadar) map.removeLayer(currentRadar);
+    const urls={
+        precipitation:'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid='+API_KEY,
+        temperature:'https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid='+API_KEY,
+        clouds:'https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid='+API_KEY
+    };
+    currentRadar = L.tileLayer(urls[type],{opacity:0.6}).addTo(map);
+    updateLegend(type);
+}
+
+// Legend
+function updateLegend(type){
+    const container=document.getElementById('legendItems');container.innerHTML='';
+    const items={
+        precipitation:[['#00f','#0ff'],['#0ff','#0f0'],['#ff0','#f90'],['#f90','#f00']],
+        temperature:[['#0000ff','#00ffff'],['#00ffff','#00ff00'],['#ffff00','#ff9900'],['#ff0000','#990000']],
+        clouds:[['#eee','#bbb'],['#bbb','#888'],['#888','#444'],['#444','#000']]
+    }[type];
+    items.forEach(([start,end],i)=>{
+        const div=document.createElement('div');div.className='legend-item';
+        div.innerHTML=`<div class="legend-color" style="background:linear-gradient(to right,${start},${end})"></div><span>Level ${i+1}</span>`;
+        container.appendChild(div);
+    });
+}
+
+// Sidebar toggle
+document.getElementById('sidebarToggle').onclick = ()=>{
+    document.getElementById('sidebar').classList.toggle('show');
+};
+
+// Autocomplete
+const locationInputField = document.getElementById('locationInput');
+const suggestionsContainer = document.getElementById('suggestions');
+locationInputField.addEventListener('input', async ()=>{
+    const query = locationInputField.value.trim();
+    suggestionsContainer.innerHTML='';
+    if(!query) return;
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(async ()=>{
+        try{
+            const res = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${API_KEY}`);
+            const data = await res.json();
+            if(!data || data.length===0) return;
+            data.forEach(loc=>{
+                const div = document.createElement('div');
+                div.className='location-item';
+                div.textContent=`${loc.name}${loc.state?', '+loc.state:''}, ${loc.country}`;
+                div.onclick=()=>{addLocation(div.textContent,loc.lat,loc.lon);suggestionsContainer.innerHTML='';locationInputField.value='';};
+                suggestionsContainer.appendChild(div);
+            });
+        }catch(e){console.error(e);}
+    },300);
+});
+
+// Add location button
+document.getElementById('addLocationBtn').onclick = ()=>{addLocation(locationInputField.value);locationInputField.value='';suggestionsContainer.innerHTML='';};
+
+// Initialize
+initMap();
+loadLocations();
+if(Object.keys(locations).length===0) addLocation('Toronto');
+</script>
+</body>
+</html>
