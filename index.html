@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Weather App</title>
+  <link rel="stylesheet" href="style.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-o9N1j7kPPSnN3cE4De22/oxS6HF4Z3GJp3hPsv0v7RQ="
+    crossorigin=""
+  />
+</head>
+<body>
+  <header>
+    <h1>Weather App</h1>
+    <input id="locationInput" type="text" placeholder="Enter a city" />
+    <button id="addBtn">Add Location</button>
+  </header>
+
+  <main>
+    <div id="map"></div>
+    <ul id="savedLocations"></ul>
+  </main>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-vuJd1tsJps3r2bN1JXh0qW6rYtovQZ9s5x5l1fMM4K4="
+    crossorigin=""
+  ></script>
+  <script src="script.js"></script>
+</body>
+</html>
