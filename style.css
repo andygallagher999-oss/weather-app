@@ -1,0 +1,42 @@
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: Arial, sans-serif;
+  background:#f7f7f7;
+}
+header {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:1rem;
+  background:#2196f3;
+  color:#fff;
+}
+header input {
+  margin:0 0.5rem;
+  padding:0.4rem;
+  flex:1;
+  max-width:250px;
+}
+#map {
+  width:100%;
+  height:70vh;
+}
+#savedLocations {
+  list-style:none;
+  padding:1rem;
+}
+#savedLocations li {
+  margin:0.3rem 0;
+  display:flex;
+  justify-content:space-between;
+  background:#fff;
+  padding:0.4rem 0.6rem;
+  border-radius:4px;
+}
+#savedLocations button {
+  background:#e74c3c;
+  border:none;
+  color:#fff;
+  padding:0 0.4rem;
+  cursor:pointer;
+}
